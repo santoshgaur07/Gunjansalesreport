@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sales Performance Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    /* ── NEW PALETTE ── */
+    --bg:        #F4F6FA;   /* Frost White background         */
+    --surface:   #FFFFFF;   /* Card / nav surfaces            */
+    --surface2:  #EEF1F8;   /* Input / tag backgrounds        */
+    --border:    #DDE1EA;   /* Borders                        */
+    --navy:      #1B2A4A;   /* Midnight Navy – headers/text   */
+    --brand:     #2E6FD8;   /* Corporate Blue – primary data  */
+    --support:   #7BAADC;   /* Sky Slate – secondary data     */
+    --green:     #1A7A42;   /* Confidence Green – growth      */
+    --red:       #C0392B;   /* Alert Crimson – underperform   */
+    --text:      #1B2A4A;   /* body text                      */
+    --text-muted:#5A6A8A;   /* muted labels                   */
+    --text-sub:  #7B8EAD;   /* subtitles                      */
+    --radius:    12px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    background: var(--navy);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-left { display:flex; align-items:center; gap:14px; }
+  .logo-mark {
+    width:36px; height:36px;
+    background: var(--brand);
+    border-radius: 8px;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:15px; color:#fff;
+  }
+  .brand-name  { font-size:17px; font-weight:700; color:#fff; letter-spacing:-0.3px; }
+  .brand-sub   { font-size:11px; color:rgba(255,255,255,0.45); font-weight:400; letter-spacing:0.5px; text-transform:uppercase; }
+  .topbar-right { display:flex; align-items:center; gap:16px; }
+  .refresh-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    display: flex; align-items:center; gap:7px;
+    transition: background 0.2s;
+  }
+  .refresh-btn:hover { background:rgba(255,255,255,0.15); }
+  .last-updated { font-size:12px; color:rgba(255,255,255,0.45); }
+  .live-dot {
+    width:8px; height:8px;
+    background: var(--green);
+    border-radius:50%;
+    display:inline-block;
+    animation: pulse 2s infinite;
+    margin-right:5px;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+  /* ── MAIN ── */
+  .main { padding:28px 32px; max-width:1600px; margin:0 auto; }
+
+  .page-header { margin-bottom:24px; }
+  .page-header h1 { font-size:24px; font-weight:800; color:var(--navy); letter-spacing:-0.4px; }
+  .page-header p  { font-size:13px; color:var(--text-muted); margin-top:4px; }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 22px;
+    margin-bottom: 22px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+  }
+  .filter-group { display:flex; flex-direction:column; gap:5px; min-width:145px; }
+  .filter-group label {
+    font-size:10px; text-transform:uppercase; letter-spacing:0.8px;
+    color:var(--text-muted); font-weight:600;
+  }
+  .filter-group select,
+  .filter-group input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--navy);
+    padding: 8px 12px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235A6A8A' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+  }
+  .filter-group input { background-image:none; padding-right:12px; }
+  .filter-group select:focus,
+  .filter-group input:focus  { border-color: var(--brand); }
+  .filter-group select option { background:#fff; }
+  .filter-actions { display:flex; gap:8px; align-items:flex-end; }
+  .btn-reset {
+    background:transparent; border:1px solid var(--border);
+    color:var(--text-muted); padding:8px 16px; border-radius:7px;
+    font-size:13px; font-family:'Inter',sans-serif; cursor:pointer; transition:all 0.2s;
+  }
+  .btn-reset:hover { border-color:var(--red); color:var(--red); }
+  .filter-count { font-size:12px; color:var(--text-muted); align-self:center; white-space:nowrap; }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .kpi-card:hover { border-color:var(--brand); transform:translateY(-2px); }
+  .kpi-card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+  }
+  .kpi-card.navy::before  { background: var(--navy); }
+  .kpi-card.brand::before { background: var(--brand); }
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.red::before   { background: var(--red); }
+  .kpi-label { font-size:10px; text-transform:uppercase; letter-spacing:0.9px; color:var(--text-muted); font-weight:600; margin-bottom:10px; }
+  .kpi-value { font-size:27px; font-weight:800; letter-spacing:-1px; color:var(--navy); font-family:'DM Mono',monospace; line-height:1; }
+  .kpi-sub   { font-size:12px; color:var(--text-muted); margin-top:8px; }
+  .kpi-icon  { position:absolute; top:18px; right:18px; font-size:20px; opacity:0.12; }
+
+  /* ── CHARTS ── */
+  .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:22px; }
+  .chart-card  { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px 22px; }
+  .chart-card.wide { grid-column:span 2; }
+  .chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .chart-title  { font-size:13px; font-weight:700; color:var(--navy); }
+  .chart-sub    { font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .chart-wrap   { position:relative; height:230px; }
+  .chart-wrap.tall { height:270px; }
+
+  /* ── TABLE ── */
+  .table-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:22px; }
+  .table-header { padding:16px 22px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+  .table-title  { font-size:13px; font-weight:700; color:var(--navy); }
+  .table-info   { font-size:12px; color:var(--text-muted); }
+  .table-scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  thead th {
+    background: var(--surface2);
+    padding: 11px 16px;
+    text-align: left;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+  }
+  thead th:hover { color:var(--brand); }
+  thead th.sorted { color:var(--brand); }
+  tbody tr { border-bottom:1px solid var(--border); transition:background 0.15s; }
+  tbody tr:last-child { border-bottom:none; }
+  tbody tr:hover { background:var(--surface2); }
+  tbody td { padding:11px 16px; color:var(--text-sub); white-space:nowrap; }
+  tbody td:first-child { color:var(--text-muted); font-family:'DM Mono',monospace; font-size:12px; }
+
+  .invoice-badge {
+    font-family:'DM Mono',monospace; font-size:11px;
+    background:var(--surface2); border:1px solid var(--border);
+    padding:2px 7px; border-radius:4px; color:var(--navy);
+  }
+  .sales-val {
+    font-family:'DM Mono',monospace; font-weight:700;
+    color:var(--brand) !important;
+  }
+  .city-tag {
+    display:inline-block;
+    background: rgba(46,111,216,0.10);
+    border: 1px solid rgba(46,111,216,0.22);
+    color: var(--brand);
+    padding:2px 8px; border-radius:20px; font-size:11px; font-weight:500;
+  }
+  .lead-tag {
+    font-size:11px; color:var(--text-muted);
+    background:var(--surface2); padding:2px 8px; border-radius:4px;
+  }
+  .company-name { color:var(--navy) !important; font-weight:500; }
+
+  /* delta badges in table */
+  .delta-up   { color:var(--green); font-weight:600; font-size:11px; }
+  .delta-down { color:var(--red);   font-weight:600; font-size:11px; }
+
+  /* ── PAGINATION ── */
+  .pagination {
+    padding:13px 22px; border-top:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:13px; color:var(--text-muted);
+  }
+  .page-btns { display:flex; gap:5px; }
+  .page-btn {
+    background:var(--surface2); border:1px solid var(--border);
+    color:var(--text-muted); padding:5px 11px; border-radius:6px;
+    font-size:12px; cursor:pointer; transition:all 0.15s; font-family:'Inter',sans-serif;
+  }
+  .page-btn:hover, .page-btn.active {
+    background:var(--brand); border-color:var(--brand); color:#fff; font-weight:700;
+  }
+  .page-btn:disabled { opacity:0.3; cursor:not-allowed; }
+
+  /* ── BOTTOM GRID ── */
+  .bottom-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:22px; }
+
+  /* ── LEADERBOARD ── */
+  .leaderboard-list { list-style:none; }
+  .leaderboard-list li {
+    display:flex; align-items:center; gap:11px;
+    padding:9px 0; border-bottom:1px solid var(--border); font-size:13px;
+  }
+  .leaderboard-list li:last-child { border-bottom:none; }
+  .lb-rank { font-size:11px; font-weight:700; font-family:'DM Mono',monospace; color:var(--text-muted); width:20px; }
+  .lb-rank.top { color:var(--brand); }
+  .lb-name { flex:1; color:var(--navy); font-weight:500; font-size:12px; }
+  .lb-val  { font-family:'DM Mono',monospace; font-size:12px; font-weight:700; color:var(--brand); }
+  .lb-bar-wrap { width:56px; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .lb-bar { height:100%; background: linear-gradient(90deg, var(--brand), var(--support)); border-radius:2px; }
+
+  /* ── PERFORMANCE ALERT BANNER ── */
+  .alert-row { display:flex; gap:12px; margin-bottom:22px; }
+  .alert-pill {
+    flex:1; border-radius:var(--radius); padding:14px 18px;
+    display:flex; align-items:center; gap:12px;
+    border:1px solid transparent;
+  }
+  .alert-pill.success { background:#eaf7ef; border-color:#b2ddc2; }
+  .alert-pill.danger  { background:#fdf0ef; border-color:#f3c1bc; }
+  .alert-icon {
+    width:32px; height:32px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; flex-shrink:0; color:#fff;
+  }
+  .alert-icon.s { background:var(--green); }
+  .alert-icon.d { background:var(--red);   }
+  .alert-label  { font-size:10px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; }
+  .alert-label.s { color:var(--green); }
+  .alert-label.d { color:var(--red);   }
+  .alert-val { font-size:14px; font-weight:700; color:var(--navy); margin-top:2px; }
+
+  /* ── STATES ── */
+  .loading-state, .error-state {
+    display:flex; flex-direction:column; align-items:center;
+    justify-content:center; padding:60px 20px; text-align:center;
+  }
+  .spinner {
+    width:34px; height:34px;
+    border:3px solid var(--border); border-top-color:var(--brand);
+    border-radius:50%; animation:spin 0.8s linear infinite; margin-bottom:14px;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-text { font-size:14px; color:var(--text-muted); }
+  .error-icon   { font-size:30px; margin-bottom:12px; }
+  .error-msg    { font-size:14px; color:var(--red); margin-bottom:8px; }
+  .error-hint   { font-size:12px; color:var(--text-muted); max-width:420px; line-height:1.7; }
+
+  /* ── RESPONSIVE ── */
+  @media(max-width:1100px){
+    .kpi-grid    { grid-template-columns:repeat(2,1fr); }
+    .charts-grid { grid-template-columns:1fr; }
+    .chart-card.wide { grid-column:span 1; }
+    .bottom-grid { grid-template-columns:1fr 1fr; }
+    .alert-row   { flex-direction:column; }
+  }
+  @media(max-width:700px){
+    .main        { padding:14px; }
+    .topbar      { padding:0 14px; }
+    .kpi-grid    { grid-template-columns:1fr 1fr; }
+    .bottom-grid { grid-template-columns:1fr; }
+    .filter-bar  { flex-direction:column; }
+    .filter-group { min-width:100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-mark">S</div>
+    <div>
+      <div class="brand-name">SalesIQ</div>
+      <div class="brand-sub">Performance Dashboard</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="last-updated"><span class="live-dot"></span><span id="lastUpdatedText">Connecting…</span></span>
+    <button class="refresh-btn" onclick="loadData()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <div class="page-header">
+    <h1>Sales Performance Overview</h1>
+    <p>Real-time sync from Google Sheets · Auto-refreshes every 5 minutes</p>
+  </div>
+
+  <!-- PERFORMANCE ALERT BANNERS -->
+  <div class="alert-row" id="alertRow" style="display:none"></div>
+
+  <!-- FILTERS -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <label>Date From</label>
+      <input type="date" id="filterDateFrom" onchange="applyFilters()" />
+    </div>
+    <div class="filter-group">
+      <label>Date To</label>
+      <input type="date" id="filterDateTo" onchange="applyFilters()" />
+    </div>
+    <div class="filter-group">
+      <label>City</label>
+      <select id="filterCity" onchange="applyFilters()"><option value="">All Cities</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Lead Source</label>
+      <select id="filterLead" onchange="applyFilters()"><option value="">All Sources</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Search Company</label>
+      <input type="text" id="filterSearch" placeholder="Type to search…" oninput="applyFilters()" />
+    </div>
+    <div class="filter-actions">
+      <button class="btn-reset" onclick="resetFilters()">✕ Reset</button>
+    </div>
+    <span class="filter-count" id="filterCount"></span>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card brand">
+      <div class="kpi-label">Total Revenue</div>
+      <div class="kpi-value" id="kpiRevenue">—</div>
+      <div class="kpi-sub"  id="kpiRevSub">Loading…</div>
+      <div class="kpi-icon">₹</div>
+    </div>
+    <div class="kpi-card navy">
+      <div class="kpi-label">Total Orders</div>
+      <div class="kpi-value" id="kpiOrders">—</div>
+      <div class="kpi-sub"  id="kpiOrdSub">Loading…</div>
+      <div class="kpi-icon">📋</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Avg. Order Value</div>
+      <div class="kpi-value" id="kpiAov">—</div>
+      <div class="kpi-sub"  id="kpiAovSub">Loading…</div>
+      <div class="kpi-icon">📈</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Top City</div>
+      <div class="kpi-value" id="kpiTopCity" style="font-size:19px;font-family:'Inter',sans-serif;font-weight:800;">—</div>
+      <div class="kpi-sub"  id="kpiCitySub">Loading…</div>
+      <div class="kpi-icon">🏙️</div>
+    </div>
+  </div>
+
+  <!-- CHART ROW -->
+  <div class="charts-grid">
+    <div class="chart-card wide">
+      <div class="chart-header">
+        <div><div class="chart-title">Revenue Trend</div><div class="chart-sub">Sales over time (by date)</div></div>
+      </div>
+      <div class="chart-wrap"><canvas id="chartTrend" role="img" aria-label="Revenue trend line chart by date"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div><div class="chart-title">Revenue by City</div><div class="chart-sub">Top performing locations</div></div>
+      </div>
+      <div class="chart-wrap"><canvas id="chartCity" role="img" aria-label="Revenue by city bar chart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div><div class="chart-title">Lead Source Breakdown</div><div class="chart-sub">Revenue by acquisition channel</div></div>
+      </div>
+      <div class="chart-wrap"><canvas id="chartLead" role="img" aria-label="Lead source donut chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM ROW -->
+  <div class="bottom-grid">
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Top Companies</div><div class="chart-sub">By total revenue</div></div></div>
+      <ul class="leaderboard-list" id="topCompanies"></ul>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Top Customers</div><div class="chart-sub">By purchase value</div></div></div>
+      <ul class="leaderboard-list" id="topCustomers"></ul>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Orders per City</div><div class="chart-sub">Volume distribution</div></div></div>
+      <div class="chart-wrap tall"><canvas id="chartOrdersCity" role="img" aria-label="Orders per city bar chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">All Transactions</div>
+      <div class="table-info" id="tableInfo">Loading…</div>
+    </div>
+    <div id="tableBody">
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <div class="loading-text">Fetching data from Google Sheets…</div>
+      </div>
+    </div>
+    <div class="pagination" id="paginationBar" style="display:none">
+      <span id="pageInfo"></span>
+      <div class="page-btns" id="pageBtns"></div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+const SHEET_ID  = '1bcPaCHGU9Nb6WNzecHDVaEYQsXQ5oyyYfBsZTpD1XoU';
+const CSV_URL   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=0`;
+const PAGE_SIZE = 15;
+
+// ─── PALETTE (matches CSS vars) ──────────────────────────────────────────────
+const P = {
+  navy:    '#1B2A4A',
+  brand:   '#2E6FD8',
+  support: '#7BAADC',
+  green:   '#1A7A42',
+  red:     '#C0392B',
+  muted:   '#DDE1EA',
+  bg2:     '#EEF1F8',
+};
+const CHART_COLORS = [P.brand, P.support, P.navy, '#4E9DD4','#A8C8E8','#8BB3D4','#3578C0','#5590CC'];
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let rawData=[], filteredData=[], currentPage=1, sortCol=0, sortDir=1, charts={};
+
+// ─── LOAD ─────────────────────────────────────────────────────────────────────
+async function loadData() {
+  document.getElementById('lastUpdatedText').textContent = 'Refreshing…';
+  try {
+    const r = await fetch(CSV_URL + '&t=' + Date.now());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    parseAndRender(await r.text());
+  } catch(e) { showError(e.message); }
+}
+
+function parseAndRender(csv) {
+  const parsed = Papa.parse(csv, { header:true, skipEmptyLines:true });
+  rawData = parsed.data.map(row => {
+    const s = (row['sales']||row['Sales']||'0').replace(/[₹,\s]/g,'');
+    return {
+      date:     row['Date']||row['date']||'',
+      invoice:  row['invoice']||row['Invoice']||'',
+      company:  row['Company_name']||row['Company Name']||row['company_name']||'',
+      customer: row['Customer Name']||row['Customer name']||row['customer_name']||'',
+      sales:    parseFloat(s)||0,
+      lead:     row['Lead from']||row['Lead From']||row['lead_from']||'',
+      city:     row['City']||row['city']||''
+    };
+  }).filter(r => r.company||r.sales);
+
+  populateFilters();
+  applyFilters();
+  document.getElementById('lastUpdatedText').textContent =
+    'Updated ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ─── FILTERS ──────────────────────────────────────────────────────────────────
+function populateFilters() {
+  fillSelect('filterCity', [...new Set(rawData.map(r=>r.city).filter(Boolean))].sort());
+  fillSelect('filterLead', [...new Set(rawData.map(r=>r.lead).filter(Boolean))].sort());
+}
+function fillSelect(id, vals) {
+  const el = document.getElementById(id), cur = el.value;
+  while(el.options.length>1) el.remove(1);
+  vals.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o); });
+  if(cur) el.value=cur;
+}
+function applyFilters() {
+  const city   = document.getElementById('filterCity').value;
+  const lead   = document.getElementById('filterLead').value;
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+  const dFrom  = document.getElementById('filterDateFrom').value;
+  const dTo    = document.getElementById('filterDateTo').value;
+
+  filteredData = rawData.filter(r => {
+    if(city   && r.city.toLowerCase()!==city.toLowerCase()) return false;
+    if(lead   && r.lead!==lead) return false;
+    if(search && !r.company.toLowerCase().includes(search) && !r.customer.toLowerCase().includes(search)) return false;
+    if(dFrom||dTo){
+      const d=parseDate(r.date);
+      if(d){
+        if(dFrom && d<new Date(dFrom)) return false;
+        if(dTo   && d>new Date(dTo+'T23:59:59')) return false;
+      }
+    }
+    return true;
+  });
+  document.getElementById('filterCount').textContent = filteredData.length+' of '+rawData.length+' records';
+  currentPage=1;
+  renderAll();
+}
+function resetFilters(){
+  ['filterCity','filterLead'].forEach(id=>document.getElementById(id).value='');
+  ['filterSearch','filterDateFrom','filterDateTo'].forEach(id=>document.getElementById(id).value='');
+  applyFilters();
+}
+function parseDate(s){
+  if(!s) return null;
+  const p=s.split('-');
+  if(p.length===3) return p[0].length===4 ? new Date(s) : new Date(`${p[2]}-${p[1]}-${p[0]}`);
+  return new Date(s);
+}
+
+// ─── RENDER ALL ───────────────────────────────────────────────────────────────
+function renderAll(){ renderKPIs(); renderAlerts(); renderCharts(); renderTable(); renderLeaderboards(); }
+
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+function renderKPIs(){
+  const total=filteredData.reduce((s,r)=>s+r.sales,0);
+  const count=filteredData.length;
+  const aov=count?total/count:0;
+  const byCityRev=groupSum(filteredData,'city');
+  const topCity=Object.entries(byCityRev).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('kpiRevenue').textContent = fmtINR(total,true);
+  document.getElementById('kpiRevSub').textContent  = count+' transactions total';
+  document.getElementById('kpiOrders').textContent  = count;
+  document.getElementById('kpiOrdSub').textContent  = 'Invoices processed';
+  document.getElementById('kpiAov').textContent     = fmtINR(aov,true);
+  document.getElementById('kpiAovSub').textContent  = 'Per transaction';
+  document.getElementById('kpiTopCity').textContent = topCity?topCity[0]:'—';
+  document.getElementById('kpiCitySub').textContent = topCity?'₹'+fmtINR(topCity[1],true)+' revenue':'—';
+}
+
+// ─── ALERT BANNERS ────────────────────────────────────────────────────────────
+function renderAlerts(){
+  const byCityRev=groupSum(filteredData,'city');
+  const sorted=Object.entries(byCityRev).sort((a,b)=>b[1]-a[1]);
+  const row=document.getElementById('alertRow');
+  if(sorted.length<2){ row.style.display='none'; return; }
+  const best=sorted[0], worst=sorted[sorted.length-1];
+  row.style.display='flex';
+  row.innerHTML=`
+    <div class="alert-pill success">
+      <div class="alert-icon s">↑</div>
+      <div>
+        <div class="alert-label s">Top Performer</div>
+        <div class="alert-val">${best[0]} — ₹${fmtINR(best[1],true)}</div>
+      </div>
+    </div>
+    <div class="alert-pill danger">
+      <div class="alert-icon d">↓</div>
+      <div>
+        <div class="alert-label d">Needs Attention</div>
+        <div class="alert-val">${worst[0]} — ₹${fmtINR(worst[1],true)}</div>
+      </div>
+    </div>`;
+}
+
+// ─── CHARTS ───────────────────────────────────────────────────────────────────
+function renderCharts(){ renderTrend(); renderCity(); renderLead(); renderOrdersCity(); }
+function dc(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
+
+const baseOpts = (yFmt) => ({
+  responsive:true, maintainAspectRatio:false,
+  plugins:{
+    legend:{display:false},
+    tooltip:{
+      backgroundColor:'#1B2A4A', borderColor:'#DDE1EA', borderWidth:1,
+      titleColor:'#fff', bodyColor:'#CBD5E1',
+      callbacks:{ label: ctx => ' '+yFmt(ctx.parsed.y??ctx.parsed) }
+    }
+  },
+  scales:{
+    x:{ ticks:{color:'#7B8EAD',font:{size:11,family:'Inter'}}, grid:{color:'#EEF1F8'} },
+    y:{ ticks:{color:'#7B8EAD',font:{size:11,family:'Inter'},callback:v=>fmtINR(v,true)}, grid:{color:'#EEF1F8'} }
+  }
+});
+
+function renderTrend(){
+  dc('trend');
+  const byDate={};
+  filteredData.forEach(r=>{ const d=r.date||'Unknown'; byDate[d]=(byDate[d]||0)+r.sales; });
+  const sorted=Object.entries(byDate).sort((a,b)=>(parseDate(a[0])||0)-(parseDate(b[0])||0));
+  const ctx=document.getElementById('chartTrend').getContext('2d');
+  const grad=ctx.createLinearGradient(0,0,0,230);
+  grad.addColorStop(0,'rgba(46,111,216,0.18)');
+  grad.addColorStop(1,'rgba(46,111,216,0)');
+  charts.trend=new Chart(ctx,{
+    type:'line',
+    data:{ labels:sorted.map(e=>e[0]), datasets:[{
+      label:'Revenue (₹)', data:sorted.map(e=>e[1]),
+      borderColor:P.brand, backgroundColor:grad,
+      borderWidth:2.5, pointRadius:4, pointBackgroundColor:P.brand,
+      fill:true, tension:0.4
+    }]},
+    options:baseOpts(v=>'₹'+fmtINR(v,true))
+  });
+}
+
+function renderCity(){
+  dc('city');
+  const sorted=Object.entries(groupSum(filteredData,'city')).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  charts.city=new Chart(document.getElementById('chartCity').getContext('2d'),{
+    type:'bar',
+    data:{ labels:sorted.map(e=>e[0]), datasets:[{
+      label:'Revenue', data:sorted.map(e=>e[1]),
+      backgroundColor:CHART_COLORS, borderRadius:5, borderSkipped:false
+    }]},
+    options:baseOpts(v=>'₹'+fmtINR(v,true))
+  });
+}
+
+function renderLead(){
+  dc('lead');
+  const sorted=Object.entries(groupSum(filteredData,'lead')).sort((a,b)=>b[1]-a[1]);
+  charts.lead=new Chart(document.getElementById('chartLead').getContext('2d'),{
+    type:'doughnut',
+    data:{
+      labels:sorted.map(e=>e[0]||'Unknown'),
+      datasets:[{ data:sorted.map(e=>e[1]), backgroundColor:CHART_COLORS, borderWidth:0, hoverOffset:5 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:'right', labels:{color:'#5A6A8A',font:{size:11,family:'Inter'},boxWidth:10,padding:10} },
+        tooltip:{
+          backgroundColor:'#1B2A4A', borderColor:'#DDE1EA', borderWidth:1,
+          titleColor:'#fff', bodyColor:'#CBD5E1',
+          callbacks:{ label: ctx=>' ₹'+fmtINR(ctx.parsed,true) }
+        }
+      },
+      cutout:'62%'
+    }
+  });
+}
+
+function renderOrdersCity(){
+  dc('ordCity');
+  const byCity={};
+  filteredData.forEach(r=>{ const c=r.city||'Unknown'; byCity[c]=(byCity[c]||0)+1; });
+  const sorted=Object.entries(byCity).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  charts.ordCity=new Chart(document.getElementById('chartOrdersCity').getContext('2d'),{
+    type:'bar',
+    data:{ labels:sorted.map(e=>e[0]), datasets:[{
+      label:'Orders', data:sorted.map(e=>e[1]),
+      backgroundColor:CHART_COLORS.map(c=>c+'bb'), borderRadius:5, borderSkipped:false
+    }]},
+    options:baseOpts(v=>v+' orders')
+  });
+}
+
+// ─── LEADERBOARDS ─────────────────────────────────────────────────────────────
+function renderLeaderboards(){ renderLB('topCompanies','company',5); renderLB('topCustomers','customer',5); }
+function renderLB(id,field,n){
+  const groups=groupSum(filteredData,field);
+  const sorted=Object.entries(groups).sort((a,b)=>b[1]-a[1]).slice(0,n);
+  const max=sorted[0]?.[1]||1;
+  document.getElementById(id).innerHTML=sorted.map(([name,val],i)=>`
+    <li>
+      <span class="lb-rank ${i===0?'top':''}">#${i+1}</span>
+      <span class="lb-name">${name||'—'}</span>
+      <div class="lb-bar-wrap"><div class="lb-bar" style="width:${Math.round(val/max*100)}%"></div></div>
+      <span class="lb-val">₹${fmtINR(val,true)}</span>
+    </li>`).join('');
+}
+
+// ─── TABLE ────────────────────────────────────────────────────────────────────
+const COL_KEYS   = ['date','invoice','company','customer','sales','lead','city'];
+const COL_LABELS = ['Date','Invoice','Company','Customer','Sales (₹)','Lead Source','City'];
+
+function renderTable(){
+  const sorted=[...filteredData].sort((a,b)=>{
+    const av=a[COL_KEYS[sortCol]], bv=b[COL_KEYS[sortCol]];
+    return (typeof av==='number'?(av-bv):String(av).localeCompare(String(bv)))*sortDir;
+  });
+  const total=sorted.length;
+  const totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  if(currentPage>totalPages) currentPage=totalPages;
+  const slice=sorted.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
+  document.getElementById('tableInfo').textContent=total+' records';
+
+  if(total===0){
+    document.getElementById('tableBody').innerHTML=`<div class="loading-state"><div class="error-icon">🔍</div><div class="loading-text">No records match your filters.</div></div>`;
+    document.getElementById('paginationBar').style.display='none';
+    return;
+  }
+
+  let html=`<div class="table-scroll"><table>
+    <thead><tr>${COL_LABELS.map((l,i)=>`<th onclick="sortTable(${i})" class="${sortCol===i?'sorted':''}">${l} ${sortCol===i?(sortDir===1?'↑':'↓'):''}</th>`).join('')}</tr></thead>
+    <tbody>`;
+  slice.forEach(r=>{
+    html+=`<tr>
+      <td>${r.date}</td>
+      <td><span class="invoice-badge">${r.invoice}</span></td>
+      <td class="company-name">${r.company}</td>
+      <td>${r.customer}</td>
+      <td class="sales-val">₹${fmtINR(r.sales,false)}</td>
+      <td><span class="lead-tag">${r.lead||'—'}</span></td>
+      <td><span class="city-tag">${r.city}</span></td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  document.getElementById('tableBody').innerHTML=html;
+  document.getElementById('pageInfo').textContent=`Page ${currentPage} of ${totalPages} · ${total} records`;
+  renderPagination(totalPages);
+  document.getElementById('paginationBar').style.display='flex';
+}
+
+function sortTable(col){
+  sortCol===col ? sortDir*=-1 : (sortCol=col, sortDir=1);
+  renderTable();
+}
+
+function renderPagination(totalPages){
+  const bar=document.getElementById('pageBtns');
+  bar.innerHTML='';
+  const prev=document.createElement('button');
+  prev.className='page-btn'; prev.textContent='‹ Prev'; prev.disabled=currentPage===1;
+  prev.onclick=()=>{ currentPage--; renderTable(); };
+  bar.appendChild(prev);
+  getPageRange(currentPage,totalPages).forEach(p=>{
+    if(p==='…'){ const sp=document.createElement('span'); sp.textContent='…'; sp.style.cssText='color:var(--text-muted);padding:0 4px;'; bar.appendChild(sp); }
+    else { const btn=document.createElement('button'); btn.className='page-btn'+(p===currentPage?' active':''); btn.textContent=p; btn.onclick=()=>{ currentPage=p; renderTable(); }; bar.appendChild(btn); }
+  });
+  const next=document.createElement('button');
+  next.className='page-btn'; next.textContent='Next ›'; next.disabled=currentPage===totalPages;
+  next.onclick=()=>{ currentPage++; renderTable(); };
+  bar.appendChild(next);
+}
+
+function getPageRange(cur,total){
+  if(total<=7) return Array.from({length:total},(_,i)=>i+1);
+  if(cur<=4)        return [1,2,3,4,5,'…',total];
+  if(cur>=total-3)  return [1,'…',total-4,total-3,total-2,total-1,total];
+  return [1,'…',cur-1,cur,cur+1,'…',total];
+}
+
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
+function fmtINR(num,compact){
+  if(isNaN(num)) return '0';
+  if(compact && num>=100000) return (num/100000).toFixed(1)+'L';
+  if(compact && num>=1000)   return (num/1000).toFixed(1)+'K';
+  return num.toLocaleString('en-IN',{maximumFractionDigits:2});
+}
+function groupSum(data,key){
+  return data.reduce((o,r)=>{ const k=r[key]||'Unknown'; o[k]=(o[k]||0)+r.sales; return o; },{});
+}
+function showError(msg){
+  document.getElementById('tableBody').innerHTML=`
+    <div class="error-state">
+      <div class="error-icon">⚠️</div>
+      <div class="error-msg">Could not load data</div>
+      <div class="error-hint">${msg}<br><br>Make sure your Google Sheet is shared as <strong>"Anyone with the link can view"</strong>:<br>Sheet → Share → Change to Anyone with the link → Viewer.</div>
+    </div>`;
+  document.getElementById('lastUpdatedText').textContent='Failed to load';
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+loadData();
+setInterval(loadData, 5*60*1000);
+</script>
+</body>
+</html>
